@@ -40,13 +40,5 @@
 			</excludes>
 			<useDefaultExcludes>true</useDefaultExcludes>
 		</fileSet>
-		<fileSet>
-			<directory>src/script</directory>
-			<outputDirectory>/classes</outputDirectory>
-			<excludes>
-				<exclude>*</exclude>
-			</excludes>
-			<useDefaultExcludes>true</useDefaultExcludes>
-		</fileSet>
 	</fileSets>
 </assembly>

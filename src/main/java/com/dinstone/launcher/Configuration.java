@@ -16,22 +16,16 @@
 
 package com.dinstone.launcher;
 
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
-import java.net.URL;
 import java.util.Properties;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public class Configuration {
 
-    private static final Logger LOG = Logger.getLogger(Configuration.class.getName());
+    private Properties properties = new Properties();
 
-    private Properties properties = null;
-
-    public Configuration() {
-        loadProperties();
+    public Configuration(Properties properties) {
+        this.properties.putAll(properties);
     }
 
     public String getProperty(String name) {
@@ -47,61 +41,23 @@ public class Configuration {
 
     /**
      * Load properties.
+     * 
+     * @throws IOException
      */
-    private void loadProperties() {
-        InputStream is = null;
-        Throwable error = null;
-
-        try {
-            String configUrl = getConfigUrl();
-            if (configUrl != null) {
-                is = (new URL(configUrl)).openStream();
-            }
-        } catch (Throwable t) {
-            // Ignore
-        }
-
-        if (is == null) {
-            try {
-                File home = new File(getApplicationHome());
-                File conf = new File(home, "config");
-                File propFile = new File(conf, "launcher.properties");
-                is = new FileInputStream(propFile);
-            } catch (Throwable t) {
-                // Ignore
-            }
-        }
-
+    public void loadProperties(InputStream is) throws IOException {
         if (is != null) {
-            try {
-                properties = new Properties();
-                properties.load(is);
-                is.close();
-            } catch (Throwable t) {
-                error = t;
-            }
-        }
-
-        if ((is == null) || (error != null)) {
-            // Do something
-            LOG.log(Level.WARNING, "Failed to load launcher.properties", error);
-            // That's fine - we have reasonable defaults.
-            properties = new Properties();
+            properties.load(is);
         }
     }
 
     /**
-     * Get the value of the application.home environment variable.
+     * {@inheritDoc}
+     * 
+     * @see java.lang.Object#toString()
      */
-    private String getApplicationHome() {
-        return System.getProperty("application.home", System.getProperty("user.dir"));
-    }
-
-    /**
-     * Get the value of the configuration URL.
-     */
-    private String getConfigUrl() {
-        return System.getProperty("launcher.config");
+    @Override
+    public String toString() {
+        return "Configuration {properties=" + properties + "}";
     }
 
 }

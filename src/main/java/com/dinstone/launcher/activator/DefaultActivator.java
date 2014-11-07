@@ -30,7 +30,7 @@ public class DefaultActivator {
         showSystemEnvironment();
 
         try {
-            Thread.sleep(10000);
+            Thread.sleep(1000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -38,7 +38,7 @@ public class DefaultActivator {
 
     public void stop() {
         try {
-            Thread.sleep(10000);
+            Thread.sleep(1000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }

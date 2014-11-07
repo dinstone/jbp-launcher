@@ -16,7 +16,13 @@
 
 package com.dinstone.launcher;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.LinkedHashSet;
@@ -24,17 +30,13 @@ import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import javax.naming.ConfigurationException;
+
 public class Launcher {
 
     private static final Logger LOG = Logger.getLogger(Launcher.class.getName());
 
     protected static final String APPLICATION_HOME_TOKEN = "${application.home}";
-
-    private static Launcher launcher;
-
-    private Configuration config;
-
-    private ClassLoader applicationLoader;
 
     private LifecycleManager lifecycle;
 
@@ -55,14 +57,7 @@ public class Launcher {
     }
 
     public static void main(String[] args) {
-        if (launcher == null) {
-            try {
-                launcher = new Launcher();
-            } catch (Exception e) {
-                e.printStackTrace();
-                return;
-            }
-        }
+        Launcher launcher = new Launcher();
 
         try {
             String command = "start";
@@ -75,7 +70,7 @@ public class Launcher {
             } else if (command.equals("stop")) {
                 launcher.stop();
             } else {
-                LOG.log(Level.WARNING, "Bootstrap: command \"" + command + "\" does not exist.");
+                LOG.warning("Bootstrap: command \"" + command + "\" does not exist.");
             }
         } catch (Throwable t) {
             t.printStackTrace();
@@ -84,24 +79,27 @@ public class Launcher {
     }
 
     private void init() throws Exception {
-        initApplicationHome();
+        String applicationHome = getApplicationHome();
+        LOG.config("application.home is " + applicationHome);
 
-        initConfig();
+        Configuration config = loadConfiguration(applicationHome);
+        LOG.config("launcher.properties is " + config);
 
-        initClassLoaders();
+        ClassLoader applicationClassLoader = getApplicationClassLoader(applicationHome, config);
+        LOG.config("application.classloader is " + applicationClassLoader);
 
-        // load activator class
-        initActivatorClass();
+        // load activator
+        initActivator(applicationClassLoader, config);
     }
 
     /**
      * Set the <code>application.home</code> System property to the current
      * working directory if it has not been set.
      */
-    private void initApplicationHome() {
+    private String getApplicationHome() {
         String applicationHome = System.getProperty("application.home");
         if (applicationHome != null) {
-            return;
+            return applicationHome;
         }
 
         File bootstrapJar = new File(System.getProperty("user.dir"), "bootstrap.jar");
@@ -117,50 +115,68 @@ public class Launcher {
             System.setProperty("application.home", System.getProperty("user.dir"));
         }
 
-        applicationHome = System.getProperty("application.home");
+        return System.getProperty("application.home");
     }
 
-    private void initConfig() {
-        config = new Configuration();
+    private Configuration loadConfiguration(String applicationHome) {
+        Configuration configuration = new Configuration(System.getProperties());
+
+        InputStream is = null;
+        try {
+            String configUrl = System.getProperty("launcher.config");
+            if (configUrl != null) {
+                is = (new URL(configUrl)).openStream();
+            }
+        } catch (Throwable t) {
+        }
+
+        if (is == null) {
+            try {
+                File confidDir = new File(applicationHome, "config");
+                File configFile = new File(confidDir, "launcher.properties");
+                is = new FileInputStream(configFile);
+            } catch (Throwable t) {
+            }
+        }
+
+        if (is != null) {
+            try {
+                configuration.loadProperties(is);
+                is.close();
+            } catch (Throwable t) {
+                LOG.log(Level.WARNING, "Failed to load launcher.properties.", t);
+            }
+        }
+
+        return configuration;
     }
 
-    private void initClassLoaders() throws Exception {
-        applicationLoader = createClassLoader("application", null);
-        if (applicationLoader == null) {
-            applicationLoader = this.getClass().getClassLoader();
+    private ClassLoader getApplicationClassLoader(String applicationHome, Configuration config) throws Exception {
+        String classPath = config.getProperty("application.classpath");
+        if (classPath == null) {
+            // default class path
+            classPath = "${application.home}/config,${application.home}/lib/*.jar";
+        }
+
+        ClassLoader classLoader = createClassLoader(applicationHome, classPath, null);
+        if (classLoader == null) {
+            classLoader = this.getClass().getClassLoader();
         }
 
         // set applicationLoader as current thread context class loader
-        Thread.currentThread().setContextClassLoader(applicationLoader);
+        Thread.currentThread().setContextClassLoader(classLoader);
+
+        return classLoader;
     }
 
-    private void initActivatorClass() throws Exception {
-        String acp = config.getProperty("activator.class");
-        if (acp == null || acp.length() == 0) {
-            throw new IllegalStateException("activator.class property is null");
-        }
-
-        try {
-            Class<?> activatorClass = applicationLoader.loadClass(acp);
-
-            // new an activator object
-            Object activator = activatorClass.newInstance();
-            lifecycle = new LifecycleManager(activator, config);
-        } catch (Exception e) {
-            LOG.log(Level.SEVERE, "can't create activator object", e);
-            throw e;
-        }
-    }
-
-    private ClassLoader createClassLoader(String name, ClassLoader parent) throws Exception {
-        String value = config.getProperty(name + ".loader");
-        if ((value == null) || (value.equals(""))) {
+    private ClassLoader createClassLoader(String applicationHome, String classPath, ClassLoader parent)
+            throws Exception {
+        if ((classPath == null) || (classPath.equals(""))) {
             return parent;
         }
 
-        String applicationHome = System.getProperty("application.home");
         Set<URL> classPaths = new LinkedHashSet<URL>();
-        String[] tokens = value.split(",");
+        String[] tokens = classPath.split(",");
         for (String token : tokens) {
             int index = token.indexOf(APPLICATION_HOME_TOKEN);
             if (index == 0) {
@@ -232,6 +248,55 @@ public class Launcher {
             classLoader = new URLClassLoader(urls, parent);
         }
         return classLoader;
+    }
+
+    private void initActivator(ClassLoader applicationClassLoader, Configuration config) throws Exception {
+        String activatorClassName = config.getProperty("application.activator");
+        if (activatorClassName == null || activatorClassName.length() == 0) {
+            activatorClassName = findActivatorByJarService(applicationClassLoader, "application.activator");
+        }
+
+        if (activatorClassName == null || activatorClassName.length() == 0) {
+            throw new IllegalStateException("can't find application activator class");
+        }
+
+        try {
+            Class<?> activatorClass = applicationClassLoader.loadClass(activatorClassName);
+
+            // new an activator object
+            Object activator = activatorClass.newInstance();
+            lifecycle = new LifecycleManager(activator, config);
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "can't create activator object", e);
+            throw e;
+        }
+    }
+
+    private String findActivatorByJarService(ClassLoader classLoader, String activatorId) throws ConfigurationException {
+        String serviceId = "META-INF/services/" + activatorId;
+
+        InputStream is = classLoader.getResourceAsStream(serviceId);
+        if (is == null) {
+            return null;
+        }
+
+        BufferedReader rd;
+        try {
+            rd = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        } catch (UnsupportedEncodingException e) {
+            rd = new BufferedReader(new InputStreamReader(is));
+        }
+
+        String activatorClassName = null;
+        try {
+            // Does not handle all possible input as specified by the
+            // Jar Service Provider specification
+            activatorClassName = rd.readLine();
+            rd.close();
+        } catch (IOException x) {
+        }
+
+        return activatorClassName;
     }
 
 }
