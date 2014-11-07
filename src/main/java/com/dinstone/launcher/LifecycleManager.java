@@ -56,19 +56,21 @@ public class LifecycleManager {
     public LifecycleManager(Object activator, Configuration config) {
         this.activator = activator;
 
-        String portPro = config.getProperty("listen.port");
+        String portPro = config.getProperty("lifecycle.listen.port");
         try {
             port = Integer.parseInt(portPro);
         } catch (Exception e) {
         }
 
-        String shutdown = config.getProperty("listen.cmdm");
-        if (shutdown != null && shutdown.length() > 0) {
-            this.shutdown = shutdown;
+        String command = config.getProperty("lifecycle.listen.command");
+        if (command != null) {
+            this.shutdown = command;
         }
 
-        String enabled = config.getProperty("lifecycle.enabled");
-        this.await = Boolean.parseBoolean(enabled);
+        String enabled = config.getProperty("lifecycle.listen.enabled");
+        if (enabled != null) {
+            this.await = Boolean.parseBoolean(enabled);
+        }
     }
 
     public void start() {

@@ -23,7 +23,7 @@ package com.dinstone.launcher;
 public class LauncherStopTest {
 
     public static void main(String[] args) {
-        System.setProperty("launcher.config", "file:src/test/resources/launcher.properties");
+        System.setProperty("launcher.config", "file:src/test/resources/config/launcher.properties");
 
         Launcher l = new Launcher();
         try {
