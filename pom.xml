@@ -7,7 +7,6 @@
 		<version>1.0.0</version>
 		<relativePath>../jbp-parent</relativePath>
 	</parent>
-	<groupId>com.dinstone.jbp</groupId>
 	<artifactId>jbp-launcher</artifactId>
 	<version>1.2.0</version>
 	<build>

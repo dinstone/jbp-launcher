@@ -2,7 +2,7 @@
 
 #JAVA_GC="-XX:+DisableExplicitGC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/jvmlog/jvm.hprof -XX:+PrintClassHistogram -Xloggc:/tmp/gc.log -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintHeapAtGC"
 
-JAVA_OPTS="-server -Xss256k -Xms1g -Xmx1g -XX:PermSize=128m -XX:MaxPermSize=128m -Djava.net.preferIPv4Stack=true"
+JAVA_OPTS="-server -Xss256k -Xms1g -Xmx1g -XX:PermSize=128m -XX:MaxPermSize=128m -Djava.net.preferIPv4Stack=true -Dfile.encoding=UTF-8"
 
 #JPDA_OPTS="-agentlib:jdwp=transport=dt_socket,address=8888,server=y,suspend=y"
 
