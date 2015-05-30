@@ -63,13 +63,17 @@ public class Launcher {
 
             if (command.equals("start")) {
                 launcher.start();
+
+                // Forced to exit the JVM
+                System.exit(0);
             } else if (command.equals("stop")) {
                 launcher.stop();
             } else {
-                LOG.warning("Bootstrap: command \"" + command + "\" does not exist.");
+                LOG.warning("Launcher: command \"" + command + "\" does not exist.");
             }
         } catch (Throwable t) {
             t.printStackTrace();
+            System.exit(-1);
         }
 
     }
@@ -94,8 +98,7 @@ public class Launcher {
     }
 
     /**
-     * Set the <code>application.home</code> System property to the current
-     * working directory if it has not been set.
+     * Set the <code>application.home</code> System property to the current working directory if it has not been set.
      */
     private String getApplicationHome() {
         String applicationHome = System.getProperty("application.home");
