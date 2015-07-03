@@ -22,6 +22,10 @@ import java.util.Properties;
 
 public class Configuration {
 
+    static final String LAUNCHER_HOME = "launcher.home";
+
+    static final String APPLICATION_HOME = "application.home";
+
     private Properties properties = new Properties();
 
     public Configuration(Properties properties) {
@@ -37,6 +41,10 @@ public class Configuration {
      */
     public String getProperty(String name, String defaultValue) {
         return properties.getProperty(name, defaultValue);
+    }
+
+    public void setProperty(String name, String value) {
+        properties.setProperty(name, value);
     }
 
     /**

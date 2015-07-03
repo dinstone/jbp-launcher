@@ -44,8 +44,8 @@ public class BootstrapTest {
 
     @Test
     public void testMain03() throws Exception {
-        // -Dapplication.home=src/test/resources/
-        System.setProperty("application.home", "src/test/resources/");
+        // -Dlauncher.home=src/test/resources/
+        System.setProperty("launcher.home", "src/test/resources/");
         Launcher bs = new Launcher();
         bs.start();
     }

@@ -16,27 +16,23 @@
 
 package com.dinstone.launcher;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.UnsupportedEncodingException;
 import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.naming.ConfigurationException;
-
+/**
+ * java application laucher.
+ * 
+ * @author dinstone
+ * @version 2.0.0
+ */
 public class Launcher {
 
     private static final Logger LOG = Logger.getLogger(Launcher.class.getName());
-
-    protected static final String APPLICATION_HOME_TOKEN = "${application.home}";
 
     private LifecycleManager lifecycle;
 
@@ -80,17 +76,16 @@ public class Launcher {
 
     private void init() {
         try {
-            String applicationHome = getApplicationHome();
-            LOG.config("application.home is " + applicationHome);
+            String launcherHome = getLauncherHome();
+            LOG.info("launcher.home is " + launcherHome);
 
-            Configuration config = loadConfiguration(applicationHome);
+            Configuration config = getConfiguration(launcherHome);
             LOG.config("launcher.properties is " + config);
 
-            ClassLoader applicationClassLoader = getApplicationClassLoader(applicationHome, config);
-            LOG.config("application.classloader is " + applicationClassLoader);
+            String applicationHome = getApplicationHome(config, launcherHome);
+            LOG.info("application.home is " + applicationHome);
 
-            // load activator
-            initActivator(applicationClassLoader, config);
+            lifecycle = new LifecycleManager(config);
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "launcher init error.", e);
             throw new RuntimeException(e);
@@ -98,31 +93,34 @@ public class Launcher {
     }
 
     /**
-     * Set the <code>application.home</code> System property to the current working directory if it has not been set.
+     * Set the <code>launcher.home</code> System property to the current working directory if it has not been set.
+     * 
+     * @return
      */
-    private String getApplicationHome() {
-        String applicationHome = System.getProperty("application.home");
-        if (applicationHome != null) {
-            return applicationHome;
+    private String getLauncherHome() {
+        String launcherHome = System.getProperty(Configuration.LAUNCHER_HOME);
+        if (launcherHome != null) {
+            return launcherHome;
         }
 
-        File bootstrapJar = new File(System.getProperty("user.dir"), "bootstrap.jar");
+        String userDir = System.getProperty("user.dir");
+        File bootstrapJar = new File(userDir, "bootstrap.jar");
         if (bootstrapJar.exists()) {
             try {
-                File parentDir = new File(System.getProperty("user.dir"), "..");
-                System.setProperty("application.home", parentDir.getCanonicalPath());
+                File parentDir = new File(userDir, "..");
+                System.setProperty(Configuration.LAUNCHER_HOME, parentDir.getCanonicalPath());
             } catch (Exception e) {
                 // Ignore
-                System.setProperty("application.home", System.getProperty("user.dir"));
+                System.setProperty(Configuration.LAUNCHER_HOME, userDir);
             }
         } else {
-            System.setProperty("application.home", System.getProperty("user.dir"));
+            System.setProperty(Configuration.LAUNCHER_HOME, userDir);
         }
 
-        return System.getProperty("application.home");
+        return System.getProperty(Configuration.LAUNCHER_HOME);
     }
 
-    private Configuration loadConfiguration(String applicationHome) {
+    private Configuration getConfiguration(String launcherHome) {
         Configuration configuration = new Configuration(System.getProperties());
 
         InputStream is = null;
@@ -136,7 +134,7 @@ public class Launcher {
 
         if (is == null) {
             try {
-                File confidDir = new File(applicationHome, "config");
+                File confidDir = new File(launcherHome, "config");
                 File configFile = new File(confidDir, "launcher.properties");
                 is = new FileInputStream(configFile);
             } catch (Throwable t) {
@@ -146,161 +144,27 @@ public class Launcher {
         if (is != null) {
             try {
                 configuration.loadProperties(is);
-                is.close();
             } catch (Throwable t) {
                 LOG.log(Level.WARNING, "Failed to load launcher.properties.", t);
+            } finally {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                }
             }
         }
 
         return configuration;
     }
 
-    private ClassLoader getApplicationClassLoader(String applicationHome, Configuration config) throws Exception {
-        String classPath = config.getProperty("application.classpath");
-        if (classPath == null) {
-            // default class path
-            classPath = "${application.home}/config,${application.home}/lib/*.jar";
+    private String getApplicationHome(Configuration config, String launcherHome) {
+        String applicationHome = config.getProperty(Configuration.APPLICATION_HOME);
+        if (applicationHome != null && applicationHome.length() > 0) {
+            return applicationHome;
         }
 
-        ClassLoader classLoader = createClassLoader(applicationHome, classPath, null);
-        if (classLoader == null) {
-            classLoader = this.getClass().getClassLoader();
-        }
-
-        // set applicationLoader as current thread context class loader
-        Thread.currentThread().setContextClassLoader(classLoader);
-
-        return classLoader;
-    }
-
-    private ClassLoader createClassLoader(String applicationHome, String classPath, ClassLoader parent)
-            throws Exception {
-        if ((classPath == null) || (classPath.equals(""))) {
-            return parent;
-        }
-
-        Set<URL> classPaths = new LinkedHashSet<URL>();
-        String[] tokens = classPath.split(",");
-        for (String token : tokens) {
-            int index = token.indexOf(APPLICATION_HOME_TOKEN);
-            if (index == 0) {
-                token = applicationHome + token.substring(APPLICATION_HOME_TOKEN.length());
-            }
-
-            try {
-                URL url = new URL(token);
-                classPaths.add(url);
-                continue;
-            } catch (Exception e) {
-            }
-
-            if (token.endsWith("*.jar")) {
-                token = token.substring(0, token.length() - "*.jar".length());
-
-                File directory = new File(token);
-                if (!directory.exists() || !directory.isDirectory() || !directory.canRead()) {
-                    continue;
-                }
-
-                String[] filenames = directory.list();
-                for (int j = 0; j < filenames.length; j++) {
-                    String filename = filenames[j].toLowerCase();
-                    if (!filename.endsWith(".jar")) {
-                        continue;
-                    }
-                    File file = new File(directory, filenames[j]);
-                    if (!file.exists() || !file.canRead()) {
-                        continue;
-                    }
-
-                    LOG.log(Level.CONFIG, "Including glob jar file [{0}]", file.getAbsolutePath());
-                    URL url = file.toURI().toURL();
-                    classPaths.add(url);
-                }
-            } else if (token.endsWith(".jar")) {
-                File file = new File(token);
-                if (!file.exists() || !file.canRead()) {
-                    continue;
-                }
-
-                LOG.log(Level.CONFIG, "Including jar file [{0}]", file.getAbsolutePath());
-                URL url = file.toURI().toURL();
-                classPaths.add(url);
-            } else {
-                File directory = new File(token);
-                if (!directory.exists() || !directory.isDirectory() || !directory.canRead()) {
-                    continue;
-                }
-
-                LOG.log(Level.CONFIG, "Including directory {0}", directory.getAbsolutePath());
-                URL url = directory.toURI().toURL();
-                classPaths.add(url);
-            }
-        }
-
-        URL[] urls = classPaths.toArray(new URL[classPaths.size()]);
-        if (LOG.isLoggable(Level.CONFIG)) {
-            for (int i = 0; i < urls.length; i++) {
-                LOG.log(Level.CONFIG, "location " + i + " is " + urls[i]);
-            }
-        }
-
-        ClassLoader classLoader = null;
-        if (parent == null) {
-            classLoader = new URLClassLoader(urls);
-        } else {
-            classLoader = new URLClassLoader(urls, parent);
-        }
-        return classLoader;
-    }
-
-    private void initActivator(ClassLoader applicationClassLoader, Configuration config) throws Exception {
-        String activatorClassName = config.getProperty("application.activator");
-        if (activatorClassName == null || activatorClassName.length() == 0) {
-            activatorClassName = findActivatorByJarService(applicationClassLoader, "application.activator");
-        }
-
-        if (activatorClassName == null || activatorClassName.length() == 0) {
-            throw new IllegalStateException("can't find application activator class");
-        }
-
-        try {
-            Class<?> activatorClass = applicationClassLoader.loadClass(activatorClassName);
-
-            // new an activator object
-            Object activator = activatorClass.newInstance();
-            lifecycle = new LifecycleManager(activator, config);
-        } catch (Exception e) {
-            LOG.log(Level.SEVERE, "can't create activator object", e);
-            throw e;
-        }
-    }
-
-    private String findActivatorByJarService(ClassLoader classLoader, String activatorId) throws ConfigurationException {
-        String serviceId = "META-INF/services/" + activatorId;
-
-        InputStream is = classLoader.getResourceAsStream(serviceId);
-        if (is == null) {
-            return null;
-        }
-
-        BufferedReader rd;
-        try {
-            rd = new BufferedReader(new InputStreamReader(is, "UTF-8"));
-        } catch (UnsupportedEncodingException e) {
-            rd = new BufferedReader(new InputStreamReader(is));
-        }
-
-        String activatorClassName = null;
-        try {
-            // Does not handle all possible input as specified by the
-            // Jar Service Provider specification
-            activatorClassName = rd.readLine();
-            rd.close();
-        } catch (IOException x) {
-        }
-
-        return activatorClassName;
+        config.setProperty(Configuration.APPLICATION_HOME, launcherHome);
+        return config.getProperty(Configuration.APPLICATION_HOME);
     }
 
 }

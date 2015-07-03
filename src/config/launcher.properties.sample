@@ -1,9 +1,0 @@
-# set application classpath
-application.classpath=${application.home}/config,${application.home}/lib/*.jar
-# set application activator class
-application.activator=com.dinstone.launcher.activator.DefaultActivator
-
-# set lifecycle config
-lifecycle.listen.enabled=true
-lifecycle.listen.port=5555
-lifecycle.listen.command=SHUTDOWN

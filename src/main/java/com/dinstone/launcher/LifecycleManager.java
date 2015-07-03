@@ -16,20 +16,32 @@
 
 package com.dinstone.launcher;
 
+import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.security.AccessControlException;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import javax.naming.ConfigurationException;
 
 public class LifecycleManager {
 
     private static final Logger LOG = Logger.getLogger(LifecycleManager.class.getName());
+
+    protected static final String APPLICATION_HOME_TOKEN = "${application.home}";
 
     /**  */
     private static final String INVALID = "INVALID";
@@ -49,13 +61,14 @@ public class LifecycleManager {
 
     private boolean await = true;
 
-    private Object activator;
-
     private ServerSocket serverSocket;
 
-    public LifecycleManager(Object activator, Configuration config) {
-        this.activator = activator;
+    private Configuration config;
 
+    private Object activator;
+
+    public LifecycleManager(Configuration config) {
+        this.config = config;
         String portPro = config.getProperty("lifecycle.listen.port");
         try {
             port = Integer.parseInt(portPro);
@@ -73,15 +86,95 @@ public class LifecycleManager {
         }
     }
 
-    public void start() {
+    public void start() throws Exception {
         init();
 
-        startActivator();
+        activate();
 
         await();
     }
 
-    public void stop() {
+    private void init() {
+        if (await) {
+            // Set up a server socket to wait on
+            try {
+                InetAddress hostAddress = InetAddress.getByName("localhost");
+                serverSocket = new ServerSocket(port, 1, hostAddress);
+            } catch (IOException e) {
+                LOG.log(Level.SEVERE, "Can't create listener on " + port, e);
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    private void activate() throws Exception {
+        initActivator();
+
+        startActivator();
+    }
+
+    private void await() {
+        if (serverSocket == null) {
+            return;
+        }
+    
+        // Loop waiting for a connection and a valid command
+        while (true) {
+            // Wait for the next connection
+            Socket socket = null;
+            InputStream stream = null;
+            try {
+                socket = serverSocket.accept();
+                socket.setSoTimeout(2000); // two seconds
+                stream = socket.getInputStream();
+    
+                InetAddress radd = socket.getInetAddress();
+                LOG.log(Level.INFO, "Have an closing request at " + radd);
+            } catch (AccessControlException ace) {
+                LOG.log(Level.WARNING, "security exception", ace);
+                continue;
+            } catch (IOException e) {
+                LOG.log(Level.SEVERE, "accept socket failure", e);
+                throw new RuntimeException(e);
+            }
+    
+            // Read a set of characters from the socket
+            StringBuilder command = new StringBuilder();
+            int expected = shutdown.length(); // Cut off to avoid DoS attack
+            while (expected > 0) {
+                int ch = -1;
+                try {
+                    ch = stream.read();
+                } catch (IOException e) {
+                    ch = -1;
+                }
+                if (ch < 32) {// Control character or EOF terminates loop
+                    break;
+                }
+                command.append((char) ch);
+                expected--;
+            }
+    
+            // Match against our command string
+            if (command.toString().equals(shutdown)) {
+                stopActivator();
+                response(socket, STOPPED);
+                break;
+            } else {
+                LOG.log(Level.INFO, "Invalid command '" + command.toString() + "' received");
+                response(socket, INVALID);
+            }
+        }
+    
+        // Close the server socket and return
+        try {
+            serverSocket.close();
+        } catch (IOException e) {
+        }
+    
+    }
+
+    public void stop() throws Exception {
         try {
             InetAddress hostAddress = InetAddress.getByName("localhost");
             Socket socket = new Socket(hostAddress, port);
@@ -115,79 +208,154 @@ public class LifecycleManager {
         }
     }
 
-    private void init() {
-        if (await) {
-            // Set up a server socket to wait on
-            try {
-                InetAddress hostAddress = InetAddress.getByName("localhost");
-                serverSocket = new ServerSocket(port, 1, hostAddress);
-            } catch (IOException e) {
-                LOG.log(Level.SEVERE, "Can't create listener on " + port, e);
-                throw new RuntimeException(e);
-            }
+    private void initActivator() throws Exception {
+        ClassLoader applicationClassLoader = getApplicationClassLoader(config);
+
+        String activatorClassName = config.getProperty("application.activator");
+        if (activatorClassName == null || activatorClassName.length() == 0) {
+            activatorClassName = findActivatorByJarService(applicationClassLoader, "application.activator");
+        }
+
+        if (activatorClassName == null || activatorClassName.length() == 0) {
+            throw new IllegalStateException("can't find application activator class");
+        }
+
+        try {
+            Class<?> activatorClass = applicationClassLoader.loadClass(activatorClassName);
+
+            // new an activator object
+            activator = activatorClass.newInstance();
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "can't create activator object", e);
+            throw e;
         }
     }
 
-    private void await() {
-        if (serverSocket == null) {
-            return;
+    private ClassLoader getApplicationClassLoader(Configuration config) throws Exception {
+        String classPath = config.getProperty("application.classpath");
+        if (classPath == null) {
+            // default class path
+            classPath = "${application.home}/config,${application.home}/lib/*.jar";
         }
+    
+        String applicationHome = config.getProperty(Configuration.APPLICATION_HOME);
+        ClassLoader classLoader = createClassLoader(applicationHome, classPath, null);
+        if (classLoader == null) {
+            classLoader = this.getClass().getClassLoader();
+        }
+    
+        // set applicationLoader as current thread context class loader
+        Thread.currentThread().setContextClassLoader(classLoader);
+    
+        return classLoader;
+    }
 
-        // Loop waiting for a connection and a valid command
-        while (true) {
-            // Wait for the next connection
-            Socket socket = null;
-            InputStream stream = null;
+    private ClassLoader createClassLoader(String applicationHome, String classPath, ClassLoader parent)
+            throws Exception {
+        if ((classPath == null) || (classPath.equals(""))) {
+            return parent;
+        }
+    
+        Set<URL> classPaths = new LinkedHashSet<URL>();
+        String[] tokens = classPath.split(",");
+        for (String token : tokens) {
+            int index = token.indexOf(APPLICATION_HOME_TOKEN);
+            if (index == 0) {
+                token = applicationHome + token.substring(APPLICATION_HOME_TOKEN.length());
+            }
+    
             try {
-                socket = serverSocket.accept();
-                socket.setSoTimeout(2000); // two seconds
-                stream = socket.getInputStream();
-
-                InetAddress radd = socket.getInetAddress();
-                LOG.log(Level.INFO, "Have an closing request at " + radd);
-            } catch (AccessControlException ace) {
-                LOG.log(Level.WARNING, "security exception", ace);
+                URL url = new URL(token);
+                classPaths.add(url);
                 continue;
-            } catch (IOException e) {
-                LOG.log(Level.SEVERE, "accept socket failure", e);
-                throw new RuntimeException(e);
+            } catch (Exception e) {
             }
-
-            // Read a set of characters from the socket
-            StringBuilder command = new StringBuilder();
-            int expected = shutdown.length(); // Cut off to avoid DoS attack
-            while (expected > 0) {
-                int ch = -1;
-                try {
-                    ch = stream.read();
-                } catch (IOException e) {
-                    ch = -1;
+    
+            if (token.endsWith("*.jar")) {
+                token = token.substring(0, token.length() - "*.jar".length());
+    
+                File directory = new File(token);
+                if (!directory.exists() || !directory.isDirectory() || !directory.canRead()) {
+                    continue;
                 }
-                if (ch < 32) {// Control character or EOF terminates loop
-                    break;
+    
+                String[] filenames = directory.list();
+                for (int j = 0; j < filenames.length; j++) {
+                    String filename = filenames[j].toLowerCase();
+                    if (!filename.endsWith(".jar")) {
+                        continue;
+                    }
+                    File file = new File(directory, filenames[j]);
+                    if (!file.exists() || !file.canRead()) {
+                        continue;
+                    }
+    
+                    LOG.log(Level.CONFIG, "Including glob jar file [{0}]", file.getAbsolutePath());
+                    URL url = file.toURI().toURL();
+                    classPaths.add(url);
                 }
-                command.append((char) ch);
-                expected--;
-            }
-
-            // Match against our command string
-            if (command.toString().equals(shutdown)) {
-                stopActivator();
-                response(socket, STOPPED);
-                break;
+            } else if (token.endsWith(".jar")) {
+                File file = new File(token);
+                if (!file.exists() || !file.canRead()) {
+                    continue;
+                }
+    
+                LOG.log(Level.CONFIG, "Including jar file [{0}]", file.getAbsolutePath());
+                URL url = file.toURI().toURL();
+                classPaths.add(url);
             } else {
-                LOG.log(Level.INFO, "Invalid command '" + command.toString() + "' received");
-                response(socket, INVALID);
+                File directory = new File(token);
+                if (!directory.exists() || !directory.isDirectory() || !directory.canRead()) {
+                    continue;
+                }
+    
+                LOG.log(Level.CONFIG, "Including directory {0}", directory.getAbsolutePath());
+                URL url = directory.toURI().toURL();
+                classPaths.add(url);
             }
         }
+    
+        URL[] urls = classPaths.toArray(new URL[classPaths.size()]);
+        if (LOG.isLoggable(Level.CONFIG)) {
+            for (int i = 0; i < urls.length; i++) {
+                LOG.log(Level.CONFIG, "location " + i + " is " + urls[i]);
+            }
+        }
+    
+        ClassLoader classLoader = null;
+        if (parent == null) {
+            classLoader = new URLClassLoader(urls);
+        } else {
+            classLoader = new URLClassLoader(urls, parent);
+        }
+        return classLoader;
+    }
 
-        // Close the server socket and return
-        try {
-            serverSocket.close();
-        } catch (IOException e) {
-            ;
+    private String findActivatorByJarService(ClassLoader classLoader, String activatorId) throws ConfigurationException {
+        String serviceId = "META-INF/services/" + activatorId;
+
+        InputStream is = classLoader.getResourceAsStream(serviceId);
+        if (is == null) {
+            return null;
         }
 
+        BufferedReader rd;
+        try {
+            rd = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        } catch (UnsupportedEncodingException e) {
+            rd = new BufferedReader(new InputStreamReader(is));
+        }
+
+        String activatorClassName = null;
+        try {
+            // Does not handle all possible input as specified by the
+            // Jar Service Provider specification
+            activatorClassName = rd.readLine();
+            rd.close();
+        } catch (IOException x) {
+        }
+
+        return activatorClassName;
     }
 
     private void startActivator() {
