@@ -14,11 +14,6 @@
 			<destName>bootstrap.jar</destName>
 			<outputDirectory>/bin</outputDirectory>
 		</file>
-		<file>
-			<source>target/${project.artifactId}-${project.version}.jar</source>
-			<destName>activator-sample.jar</destName>
-			<outputDirectory>/lib</outputDirectory>
-		</file>
 	</files>
 	<fileSets>
 		<fileSet>
@@ -34,6 +29,14 @@
 		<fileSet>
 			<directory>src/script</directory>
 			<outputDirectory>/logs</outputDirectory>
+			<excludes>
+				<exclude>*</exclude>
+			</excludes>
+			<useDefaultExcludes>true</useDefaultExcludes>
+		</fileSet>
+		<fileSet>
+			<directory>src/script</directory>
+			<outputDirectory>/lib</outputDirectory>
 			<excludes>
 				<exclude>*</exclude>
 			</excludes>

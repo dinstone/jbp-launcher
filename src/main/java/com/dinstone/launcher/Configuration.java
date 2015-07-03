@@ -43,6 +43,10 @@ public class Configuration {
         return properties.getProperty(name, defaultValue);
     }
 
+    /**
+     * @param name
+     * @param value
+     */
     public void setProperty(String name, String value) {
         properties.setProperty(name, value);
     }
