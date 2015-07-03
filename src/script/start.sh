@@ -2,16 +2,12 @@
 
 LAUNCHER_HOME=$(cd `dirname $0`; pwd)
 
-#java -server -Xss256k -Xms4g -Xmx4g -Xmn1g -XX:PermSize=128m -XX:MaxPermSize=256m -Djava.net.preferIPv4Stack=true -XX:+DisableExplicitGC -XX:+HeapDumpOnOutOfMemoryError -XX:Hea
-pDumpPath=/tmp/jvmlog/jvm.hprof -XX:+PrintClassHistogram -Xloggc:/tmp/gc.log -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintHeapAtGC -cp bin/bootstrap.jar cn.citic21.start
-up.Bootstrap start > /dev/null  2>&1 &
+#java -server -Xss256k -Xms4g -Xmx4g -Xmn1g -XX:PermSize=128m -XX:MaxPermSize=256m -Djava.net.preferIPv4Stack=true -XX:+DisableExplicitGC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/jvm.hprof -XX:+PrintClassHistogram -Xloggc:/tmp/gc.log -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintHeapAtGC -cp bin/bootstrap.jar com.dinstone.launcher.Launcher start > /dev/null  2>&1 &
+#JAVA_GC="-XX:+DisableExplicitGC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/jvm.hprof -XX:+PrintClassHistogram -Xloggc:/tmp/gc.log -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintHeapAtGC"
 
-#JAVA_GC="-XX:+DisableExplicitGC -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp/jvmlog/jvm.hprof -XX:+PrintClassHistogram -Xloggc:/tmp/gc.log -XX:+PrintGCDetails -XX:+Pri
-ntGCTimeStamps -XX:+PrintHeapAtGC"
+JAVA_OPTS="-server -Xss256k -Xmn500m -Xms1g -Xmx1g -XX:PermSize=64m -XX:MaxPermSize=64m -XX:+UseConcMarkSweepGC -Djava.net.preferIPv4Stack=true -Dfile.encoding=UTF-8"
 
-JAVA_OPTS="-server -Xss256k -Xmn500m -Xms1g -Xmx1g -XX:PermSize=64m -XX:MaxPermSize=64m -Djava.net.preferIPv4Stack=true -Dfile.encoding=UTF-8 -XX:+UseConcMarkSweepGC"
-#JMX_OPTS="-Djava.rmi.server.hostname=watchserver -Dcom.sun.management.jmxremote.port=1099 -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.authenticate=f
-alse"
+#JMX_OPTS="-Djava.rmi.server.hostname=watchserver -Dcom.sun.management.jmxremote.port=1099 -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.authenticate=false"
 #JPDA_OPTS="-agentlib:jdwp=transport=dt_socket,address=8888,server=y,suspend=y"
 
 LOGGING_CONFIG="-Djava.util.logging.config.file=$LAUNCHER_HOME/config/logging.properties"
