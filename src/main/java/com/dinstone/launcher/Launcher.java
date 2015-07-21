@@ -121,8 +121,7 @@ public class Launcher {
     }
 
     private Configuration getConfiguration(String launcherHome) {
-        Configuration configuration = new Configuration(System.getProperties());
-
+        // first find launcher file from system property
         InputStream is = null;
         try {
             String configUrl = System.getProperty("launcher.config");
@@ -132,6 +131,7 @@ public class Launcher {
         } catch (Throwable t) {
         }
 
+        // second find launcher file from launcher home's dir
         if (is == null) {
             try {
                 File confidDir = new File(launcherHome, "config");
@@ -141,6 +141,7 @@ public class Launcher {
             }
         }
 
+        Configuration configuration = new Configuration();
         if (is != null) {
             try {
                 configuration.loadProperties(is);
@@ -158,13 +159,22 @@ public class Launcher {
     }
 
     private String getApplicationHome(Configuration config, String launcherHome) {
-        String applicationHome = config.getProperty(Configuration.APPLICATION_HOME);
+        String applicationHome = System.getProperty(Configuration.APPLICATION_HOME);
         if (applicationHome != null && applicationHome.length() > 0) {
+            config.setProperty(Configuration.APPLICATION_HOME, applicationHome);
             return applicationHome;
         }
 
-        config.setProperty(Configuration.APPLICATION_HOME, launcherHome);
-        return config.getProperty(Configuration.APPLICATION_HOME);
+        applicationHome = config.getProperty(Configuration.APPLICATION_HOME);
+        if (applicationHome != null && applicationHome.length() > 0) {
+            System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
+            return applicationHome;
+        }
+
+        applicationHome = launcherHome;
+        System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
+        config.setProperty(Configuration.APPLICATION_HOME, applicationHome);
+        return applicationHome;
     }
 
 }

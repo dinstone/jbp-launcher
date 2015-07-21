@@ -28,8 +28,7 @@ public class Configuration {
 
     private Properties properties = new Properties();
 
-    public Configuration(Properties properties) {
-        this.properties.putAll(properties);
+    public Configuration() {
     }
 
     public String getProperty(String name) {
