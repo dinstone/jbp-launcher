@@ -16,8 +16,11 @@
 
 package com.dinstone.launcher;
 
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.Properties;
 
 public class Configuration {
@@ -29,6 +32,107 @@ public class Configuration {
     private Properties properties = new Properties();
 
     public Configuration() {
+        loadConfig();
+    }
+
+    private void loadConfig() {
+        // first find launcher file from system property
+        InputStream is = null;
+        try {
+            String configUrl = System.getProperty("launcher.config");
+            if (configUrl != null) {
+                is = (new URL(configUrl)).openStream();
+            }
+        } catch (Throwable t) {
+        }
+
+        // second find launcher file from launcher home's dir
+        if (is == null) {
+            try {
+                String launcherHome = getLauncherHome();
+                File confidDir = new File(launcherHome, "config");
+                File configFile = new File(confidDir, "launcher.properties");
+                is = new FileInputStream(configFile);
+            } catch (Throwable t) {
+            }
+        }
+
+        if (is != null) {
+            try {
+                loadProperties(is);
+            } catch (Throwable t) {
+                // LOG.log(Level.WARNING, "Failed to load launcher.properties.", t);
+            } finally {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                }
+            }
+        }
+    }
+
+    /**
+     * Load properties.
+     * 
+     * @throws IOException
+     */
+    private void loadProperties(InputStream is) throws IOException {
+        if (is != null) {
+            properties.load(is);
+        }
+    }
+
+    /**
+     * Set the <code>launcher.home</code> System property to the current working directory if it has not been set.
+     * 
+     * @return
+     */
+    public String getLauncherHome() {
+        // check system property
+        String launcherHome = System.getProperty(LAUNCHER_HOME);
+        if (launcherHome != null) {
+            return launcherHome;
+        }
+
+        // create launcher.home
+        String userDir = System.getProperty("user.dir");
+        File bootstrapJar = new File(userDir, "bootstrap.jar");
+        if (bootstrapJar.exists()) {
+            try {
+                File parentDir = new File(userDir, "..");
+                System.setProperty(LAUNCHER_HOME, parentDir.getCanonicalPath());
+            } catch (Exception e) {
+                // set launcher.home with user.dir
+                System.setProperty(LAUNCHER_HOME, userDir);
+            }
+        } else {
+            // set launcher.home with user.dir
+            System.setProperty(LAUNCHER_HOME, userDir);
+        }
+
+        return System.getProperty(LAUNCHER_HOME);
+    }
+
+    public String getApplicationHome() {
+        // first find applicationHome from system property
+        String applicationHome = System.getProperty(Configuration.APPLICATION_HOME);
+        if (applicationHome != null && applicationHome.length() > 0) {
+            setProperty(Configuration.APPLICATION_HOME, applicationHome);
+            return applicationHome;
+        }
+
+        // second find applicationHome from launcher config
+        applicationHome = getProperty(Configuration.APPLICATION_HOME);
+        if (applicationHome != null && applicationHome.length() > 0) {
+            System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
+            return applicationHome;
+        }
+
+        // default setting launcher home with launcher home
+        applicationHome = getLauncherHome();
+        System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
+        setProperty(Configuration.APPLICATION_HOME, applicationHome);
+        return applicationHome;
     }
 
     public String getProperty(String name) {
@@ -50,25 +154,9 @@ public class Configuration {
         properties.setProperty(name, value);
     }
 
-    /**
-     * Load properties.
-     * 
-     * @throws IOException
-     */
-    public void loadProperties(InputStream is) throws IOException {
-        if (is != null) {
-            properties.load(is);
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     * 
-     * @see java.lang.Object#toString()
-     */
     @Override
     public String toString() {
-        return "Configuration {properties=" + properties + "}";
+        return properties.toString();
     }
 
 }

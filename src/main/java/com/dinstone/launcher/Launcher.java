@@ -16,16 +16,11 @@
 
 package com.dinstone.launcher;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * java application laucher.
+ * java application launcher.
  * 
  * @author dinstone
  * @version 2.0.0
@@ -65,7 +60,7 @@ public class Launcher {
             } else if (command.equals("stop")) {
                 launcher.stop();
             } else {
-                LOG.warning("Launcher: command \"" + command + "\" does not exist.");
+                LOG.warning("Java launcher does not support this command: \"" + command + "\".");
             }
         } catch (Throwable t) {
             t.printStackTrace();
@@ -76,13 +71,12 @@ public class Launcher {
 
     private void init() {
         try {
-            String launcherHome = getLauncherHome();
+            Configuration config = new Configuration();
+
+            String launcherHome = config.getLauncherHome();
             LOG.info("launcher.home is " + launcherHome);
 
-            Configuration config = getConfiguration(launcherHome);
-            LOG.config("launcher.properties is " + config);
-
-            String applicationHome = getApplicationHome(config, launcherHome);
+            String applicationHome = config.getApplicationHome();
             LOG.info("application.home is " + applicationHome);
 
             lifecycle = new LifecycleManager(config);
@@ -90,91 +84,6 @@ public class Launcher {
             LOG.log(Level.SEVERE, "launcher init error.", e);
             throw new RuntimeException(e);
         }
-    }
-
-    /**
-     * Set the <code>launcher.home</code> System property to the current working directory if it has not been set.
-     * 
-     * @return
-     */
-    private String getLauncherHome() {
-        String launcherHome = System.getProperty(Configuration.LAUNCHER_HOME);
-        if (launcherHome != null) {
-            return launcherHome;
-        }
-
-        String userDir = System.getProperty("user.dir");
-        File bootstrapJar = new File(userDir, "bootstrap.jar");
-        if (bootstrapJar.exists()) {
-            try {
-                File parentDir = new File(userDir, "..");
-                System.setProperty(Configuration.LAUNCHER_HOME, parentDir.getCanonicalPath());
-            } catch (Exception e) {
-                // Ignore
-                System.setProperty(Configuration.LAUNCHER_HOME, userDir);
-            }
-        } else {
-            System.setProperty(Configuration.LAUNCHER_HOME, userDir);
-        }
-
-        return System.getProperty(Configuration.LAUNCHER_HOME);
-    }
-
-    private Configuration getConfiguration(String launcherHome) {
-        // first find launcher file from system property
-        InputStream is = null;
-        try {
-            String configUrl = System.getProperty("launcher.config");
-            if (configUrl != null) {
-                is = (new URL(configUrl)).openStream();
-            }
-        } catch (Throwable t) {
-        }
-
-        // second find launcher file from launcher home's dir
-        if (is == null) {
-            try {
-                File confidDir = new File(launcherHome, "config");
-                File configFile = new File(confidDir, "launcher.properties");
-                is = new FileInputStream(configFile);
-            } catch (Throwable t) {
-            }
-        }
-
-        Configuration configuration = new Configuration();
-        if (is != null) {
-            try {
-                configuration.loadProperties(is);
-            } catch (Throwable t) {
-                LOG.log(Level.WARNING, "Failed to load launcher.properties.", t);
-            } finally {
-                try {
-                    is.close();
-                } catch (IOException e) {
-                }
-            }
-        }
-
-        return configuration;
-    }
-
-    private String getApplicationHome(Configuration config, String launcherHome) {
-        String applicationHome = System.getProperty(Configuration.APPLICATION_HOME);
-        if (applicationHome != null && applicationHome.length() > 0) {
-            config.setProperty(Configuration.APPLICATION_HOME, applicationHome);
-            return applicationHome;
-        }
-
-        applicationHome = config.getProperty(Configuration.APPLICATION_HOME);
-        if (applicationHome != null && applicationHome.length() > 0) {
-            System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
-            return applicationHome;
-        }
-
-        applicationHome = launcherHome;
-        System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
-        config.setProperty(Configuration.APPLICATION_HOME, applicationHome);
-        return applicationHome;
     }
 
 }

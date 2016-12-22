@@ -87,14 +87,14 @@ public class LifecycleManager {
     }
 
     public void start() throws Exception {
-        init();
+        createListener();
 
         activate();
 
-        await();
+        listenCommand();
     }
 
-    private void init() {
+    private void createListener() {
         if (await) {
             // Set up a server socket to wait on
             try {
@@ -108,16 +108,16 @@ public class LifecycleManager {
     }
 
     private void activate() throws Exception {
-        initActivator();
+        createActivator();
 
         startActivator();
     }
 
-    private void await() {
+    private void listenCommand() {
         if (serverSocket == null) {
             return;
         }
-    
+
         // Loop waiting for a connection and a valid command
         while (true) {
             // Wait for the next connection
@@ -127,7 +127,7 @@ public class LifecycleManager {
                 socket = serverSocket.accept();
                 socket.setSoTimeout(2000); // two seconds
                 stream = socket.getInputStream();
-    
+
                 InetAddress radd = socket.getInetAddress();
                 LOG.log(Level.INFO, "Have an closing request at " + radd);
             } catch (AccessControlException ace) {
@@ -137,7 +137,7 @@ public class LifecycleManager {
                 LOG.log(Level.SEVERE, "accept socket failure", e);
                 throw new RuntimeException(e);
             }
-    
+
             // Read a set of characters from the socket
             StringBuilder command = new StringBuilder();
             int expected = shutdown.length(); // Cut off to avoid DoS attack
@@ -154,7 +154,7 @@ public class LifecycleManager {
                 command.append((char) ch);
                 expected--;
             }
-    
+
             // Match against our command string
             if (command.toString().equals(shutdown)) {
                 stopActivator();
@@ -165,13 +165,13 @@ public class LifecycleManager {
                 response(socket, INVALID);
             }
         }
-    
+
         // Close the server socket and return
         try {
             serverSocket.close();
         } catch (IOException e) {
         }
-    
+
     }
 
     public void stop() throws Exception {
@@ -208,7 +208,7 @@ public class LifecycleManager {
         }
     }
 
-    private void initActivator() throws Exception {
+    private void createActivator() throws Exception {
         ClassLoader applicationClassLoader = getApplicationClassLoader(config);
 
         String activatorClassName = config.getProperty("application.activator");
@@ -219,6 +219,7 @@ public class LifecycleManager {
         if (activatorClassName == null || activatorClassName.length() == 0) {
             throw new IllegalStateException("can't find application activator class");
         }
+        LOG.log(Level.INFO, "application.activator is " + activatorClassName);
 
         try {
             Class<?> activatorClass = applicationClassLoader.loadClass(activatorClassName);
@@ -237,16 +238,16 @@ public class LifecycleManager {
             // default class path
             classPath = "${application.home}/config,${application.home}/lib/*.jar";
         }
-    
+
         String applicationHome = config.getProperty(Configuration.APPLICATION_HOME);
         ClassLoader classLoader = createClassLoader(applicationHome, classPath, null);
         if (classLoader == null) {
             classLoader = this.getClass().getClassLoader();
         }
-    
+
         // set applicationLoader as current thread context class loader
         Thread.currentThread().setContextClassLoader(classLoader);
-    
+
         return classLoader;
     }
 
@@ -255,7 +256,7 @@ public class LifecycleManager {
         if ((classPath == null) || (classPath.equals(""))) {
             return parent;
         }
-    
+
         Set<URL> classPaths = new LinkedHashSet<URL>();
         String[] tokens = classPath.split(",");
         for (String token : tokens) {
@@ -263,22 +264,22 @@ public class LifecycleManager {
             if (index == 0) {
                 token = applicationHome + token.substring(APPLICATION_HOME_TOKEN.length());
             }
-    
+
             try {
                 URL url = new URL(token);
                 classPaths.add(url);
                 continue;
             } catch (Exception e) {
             }
-    
+
             if (token.endsWith("*.jar")) {
                 token = token.substring(0, token.length() - "*.jar".length());
-    
+
                 File directory = new File(token);
                 if (!directory.exists() || !directory.isDirectory() || !directory.canRead()) {
                     continue;
                 }
-    
+
                 String[] filenames = directory.list();
                 for (int j = 0; j < filenames.length; j++) {
                     String filename = filenames[j].toLowerCase();
@@ -289,7 +290,7 @@ public class LifecycleManager {
                     if (!file.exists() || !file.canRead()) {
                         continue;
                     }
-    
+
                     LOG.log(Level.CONFIG, "Including glob jar file [{0}]", file.getAbsolutePath());
                     URL url = file.toURI().toURL();
                     classPaths.add(url);
@@ -299,7 +300,7 @@ public class LifecycleManager {
                 if (!file.exists() || !file.canRead()) {
                     continue;
                 }
-    
+
                 LOG.log(Level.CONFIG, "Including jar file [{0}]", file.getAbsolutePath());
                 URL url = file.toURI().toURL();
                 classPaths.add(url);
@@ -308,20 +309,20 @@ public class LifecycleManager {
                 if (!directory.exists() || !directory.isDirectory() || !directory.canRead()) {
                     continue;
                 }
-    
+
                 LOG.log(Level.CONFIG, "Including directory {0}", directory.getAbsolutePath());
                 URL url = directory.toURI().toURL();
                 classPaths.add(url);
             }
         }
-    
+
         URL[] urls = classPaths.toArray(new URL[classPaths.size()]);
         if (LOG.isLoggable(Level.CONFIG)) {
             for (int i = 0; i < urls.length; i++) {
                 LOG.log(Level.CONFIG, "location " + i + " is " + urls[i]);
             }
         }
-    
+
         ClassLoader classLoader = null;
         if (parent == null) {
             classLoader = new URLClassLoader(urls);
