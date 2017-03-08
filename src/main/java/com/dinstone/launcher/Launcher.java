@@ -16,6 +16,9 @@
 
 package com.dinstone.launcher;
 
+import java.util.Enumeration;
+import java.util.Map;
+import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -78,11 +81,29 @@ public class Launcher {
 
             String applicationHome = config.getApplicationHome();
             LOG.info("application.home is " + applicationHome);
+            
+            showSystemEnvironment();
 
             lifecycle = new LifecycleManager(config);
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "launcher init error.", e);
             throw new RuntimeException(e);
+        }
+    }
+
+    private void showSystemEnvironment() {
+        // System Properties
+        Properties sp = System.getProperties();
+        Enumeration<?> names = sp.propertyNames();
+        while (names.hasMoreElements()) {
+            String k = (String) names.nextElement();
+            LOG.log(Level.INFO, "System Properties: " + k + "=" + sp.getProperty(k));
+        }
+
+        // System Environment
+        Map<String, String> env = System.getenv();
+        for (String k : env.keySet()) {
+            LOG.log(Level.CONFIG, "System Environment: " + k + "=" + env.get(k));
         }
     }
 
