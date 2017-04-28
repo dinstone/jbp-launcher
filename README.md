@@ -1,4 +1,4 @@
-#jbp-launcher
+# jbp-launcher
 ============
 java application launcher provides a easy way to start and stop a java application.
 
@@ -8,11 +8,11 @@ java application launcher provides a easy way to start and stop a java applicati
 `git clone https://github.com/dinstone/jbp-launcher.git`
 `mvn install`
 
-## unzip
+### unzip
 `unzip jbp-launcher-2.3.0.zip`
 `cd jbp-launcher-2.3.0`
 
-## develop
+### develop
 now you can develop your application activator like this:
 
 ```java
@@ -41,13 +41,13 @@ now you can develop your application activator like this:
     
 ```
 
-## deploy
+### deploy
 edit launcher.properties file, modify the application.activator:
 `application.activator=demo.FooActivator`
 
 release your application package to 'lib' dir.
 
-## start & stop
+### start & stop
 execute the shell:
 `sh start.sh`
 `sh stop.sh`
