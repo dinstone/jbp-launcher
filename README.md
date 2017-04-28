@@ -1,5 +1,5 @@
 # jbp-launcher
-============
+
 java application launcher provides a easy way to start and stop a java application.
 
 ## Quick Start
@@ -17,27 +17,27 @@ now you can develop your application activator like this:
 
 ```java
 
-	public class FooActivator {
+public class FooActivator {
 
-    private static final Logger LOG = Logger.getLogger(FooActivator.class.getName());
+private static final Logger LOG = Logger.getLogger(FooActivator.class.getName());
 
-    public void start() {
-        showSystemEnvironment();
+public void start() {
+    showSystemEnvironment();
 
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+    try {
+        Thread.sleep(1000);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
     }
+}
 
-    public void stop() {
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+public void stop() {
+    try {
+        Thread.sleep(1000);
+    } catch (InterruptedException e) {
+        e.printStackTrace();
     }
+}
     
 ```
 
