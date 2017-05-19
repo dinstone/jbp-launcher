@@ -44,45 +44,53 @@ public class LifecycleManager {
     protected static final String APPLICATION_HOME_TOKEN = "${application.home}";
 
     /**  */
-    private static final String INVALID = "INVALID";
+    private static final String MESSAGE_INVALID = "INVALID";
 
     /**  */
-    private static final String STOPPED = "STOPPED";
+    private static final String MESSAGE_STOPPED = "STOPPED";
 
     /**  */
-    private static final String CMDM = "SHUTDOWN";
+    private static final String DEFAULT_COMMAND = "SHUTDOWN";
+
+    private static final int DEFAULT_LISTEN_PORT = 5555;
 
     /**
      * The shutdown command string we are looking for.
      */
-    private String shutdown = CMDM;
+    private String shutdownCommand = DEFAULT_COMMAND;
 
-    private int port = 5555;
+    private int listenPort = DEFAULT_LISTEN_PORT;
 
-    private boolean await = true;
+    private boolean awaitEnabled = true;
 
-    private ServerSocket serverSocket;
+    private volatile boolean awaitStop = false;
 
-    private Configuration config;
+    private volatile ServerSocket awaitSocket;
+
+    private volatile Thread awaitThread;
+
+    private final Configuration config;
 
     private Object activator;
 
     public LifecycleManager(Configuration config) {
         this.config = config;
+
         String portPro = config.getProperty("lifecycle.listen.port");
         try {
-            port = Integer.parseInt(portPro);
+            listenPort = Integer.parseInt(portPro);
         } catch (Exception e) {
+            LOG.log(Level.WARNING, "Invalid listener port, will use default port {0}", listenPort);
         }
 
         String command = config.getProperty("lifecycle.listen.command");
         if (command != null) {
-            this.shutdown = command;
+            this.shutdownCommand = command;
         }
 
         String enabled = config.getProperty("lifecycle.listen.enabled");
         if (enabled != null) {
-            this.await = Boolean.parseBoolean(enabled);
+            this.awaitEnabled = Boolean.parseBoolean(enabled);
         }
     }
 
@@ -91,17 +99,17 @@ public class LifecycleManager {
 
         activate();
 
-        listenCommand();
+        startListener();
     }
 
     private void createListener() {
-        if (await) {
+        if (awaitEnabled) {
             // Set up a server socket to wait on
             try {
                 InetAddress hostAddress = InetAddress.getByName("localhost");
-                serverSocket = new ServerSocket(port, 1, hostAddress);
+                awaitSocket = new ServerSocket(listenPort, 1, hostAddress);
             } catch (IOException e) {
-                LOG.log(Level.SEVERE, "Can't create listener on " + port, e);
+                LOG.log(Level.SEVERE, "Can't create listener on " + listenPort, e);
                 throw new RuntimeException(e);
             }
         }
@@ -113,18 +121,34 @@ public class LifecycleManager {
         startActivator();
     }
 
-    private void listenCommand() {
-        if (serverSocket == null) {
+    protected void startListener() {
+        if (!awaitEnabled || awaitSocket == null) {
             return;
         }
 
+        ApplicationShutdownHook shutdownHook = new ApplicationShutdownHook();
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+
+        // whether await was aborted
+        boolean aborted = await();
+
+        if (!aborted) {
+            Runtime.getRuntime().removeShutdownHook(shutdownHook);
+        }
+
+        destroyListener();
+    }
+
+    private boolean await() {
+        awaitThread = Thread.currentThread();
+
         // Loop waiting for a connection and a valid command
-        while (true) {
+        while (!awaitStop) {
             // Wait for the next connection
             Socket socket = null;
             InputStream stream = null;
             try {
-                socket = serverSocket.accept();
+                socket = awaitSocket.accept();
                 socket.setSoTimeout(2000); // two seconds
                 stream = socket.getInputStream();
 
@@ -134,13 +158,19 @@ public class LifecycleManager {
                 LOG.log(Level.WARNING, "security exception", ace);
                 continue;
             } catch (IOException e) {
-                LOG.log(Level.SEVERE, "accept socket failure", e);
-                throw new RuntimeException(e);
+                if (awaitStop) {
+                    // Wait was aborted with socket.close()
+                    LOG.log(Level.INFO, "Accept socket aborted");
+                    break;
+                } else {
+                    LOG.log(Level.SEVERE, "Accept socket failure", e);
+                    throw new RuntimeException(e);
+                }
             }
 
             // Read a set of characters from the socket
             StringBuilder command = new StringBuilder();
-            int expected = shutdown.length(); // Cut off to avoid DoS attack
+            int expected = shutdownCommand.length(); // Cut off to avoid DoS attack
             while (expected > 0) {
                 int ch = -1;
                 try {
@@ -156,32 +186,55 @@ public class LifecycleManager {
             }
 
             // Match against our command string
-            if (command.toString().equals(shutdown)) {
+            if (command.toString().equals(shutdownCommand)) {
                 stopActivator();
-                response(socket, STOPPED);
+                response(socket, MESSAGE_STOPPED);
                 break;
             } else {
                 LOG.log(Level.INFO, "Invalid command '" + command.toString() + "' received");
-                response(socket, INVALID);
+                response(socket, MESSAGE_INVALID);
             }
         }
 
-        // Close the server socket and return
-        try {
-            serverSocket.close();
-        } catch (IOException e) {
-        }
+        return awaitStop;
+    }
 
+    protected void stopListener() {
+        stopActivator();
+
+        LOG.log(Level.INFO, "Notify socket aborted");
+        awaitStop = true;
+
+        if (awaitThread != null) {
+            destroyListener();
+
+            awaitThread.interrupt();
+            try {
+                awaitThread.join(1000);
+            } catch (InterruptedException e) {
+                // Ignored
+            }
+        }
+    }
+
+    private void destroyListener() {
+        // Close the server socket
+        if (awaitSocket != null) {
+            try {
+                awaitSocket.close();
+            } catch (IOException e) {
+            }
+        }
     }
 
     public void stop() throws Exception {
         try {
             InetAddress hostAddress = InetAddress.getByName("localhost");
-            Socket socket = new Socket(hostAddress, port);
+            Socket socket = new Socket(hostAddress, listenPort);
             // send close request
             OutputStream out = socket.getOutputStream();
-            for (int i = 0; i < shutdown.length(); i++) {
-                out.write(shutdown.charAt(i));
+            for (int i = 0; i < shutdownCommand.length(); i++) {
+                out.write(shutdownCommand.charAt(i));
             }
             out.flush();
 
@@ -194,14 +247,13 @@ public class LifecycleManager {
             while ((res = in.read()) != -1) {
                 reply.append((char) res);
             }
-
             socket.close();
 
             // response
-            if (reply.toString().equals(STOPPED)) {
+            if (reply.toString().equals(MESSAGE_STOPPED)) {
                 LOG.log(Level.INFO, "Activator is stopped");
             } else {
-                LOG.log(Level.INFO, "Activator stop failure: " + reply);
+                LOG.log(Level.INFO, "Activator stop failure: {0}", reply);
             }
         } catch (Exception e) {
             LOG.log(Level.SEVERE, "Activator stop error: ", e);
@@ -209,7 +261,7 @@ public class LifecycleManager {
     }
 
     private void createActivator() throws Exception {
-        ClassLoader applicationClassLoader = getApplicationClassLoader(config);
+        ClassLoader applicationClassLoader = getApplicationClassLoader();
 
         String activatorClassName = config.getProperty("application.activator");
         if (activatorClassName == null || activatorClassName.length() == 0) {
@@ -232,7 +284,7 @@ public class LifecycleManager {
         }
     }
 
-    private ClassLoader getApplicationClassLoader(Configuration config) throws Exception {
+    private ClassLoader getApplicationClassLoader() throws Exception {
         String classPath = config.getProperty("application.classpath");
         if (classPath == null) {
             // default class path
@@ -332,7 +384,8 @@ public class LifecycleManager {
         return classLoader;
     }
 
-    private String findActivatorByJarService(ClassLoader classLoader, String activatorId) throws ConfigurationException {
+    private String findActivatorByJarService(ClassLoader classLoader, String activatorId)
+            throws ConfigurationException {
         String serviceId = "META-INF/services/" + activatorId;
 
         InputStream is = classLoader.getResourceAsStream(serviceId);
@@ -399,6 +452,20 @@ public class LifecycleManager {
 
             socket.close();
         } catch (IOException e) {
+        }
+    }
+
+    protected class ApplicationShutdownHook extends Thread {
+
+        @Override
+        public void run() {
+            try {
+                LOG.log(Level.INFO, "Application shutdown running");
+
+                stopListener();
+            } catch (Throwable ex) {
+                LOG.log(Level.WARNING, "Application shutdown failure", ex);
+            }
         }
     }
 }

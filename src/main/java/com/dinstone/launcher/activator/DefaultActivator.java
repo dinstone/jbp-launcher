@@ -29,11 +29,7 @@ public class DefaultActivator {
     public void start() {
         showSystemEnvironment();
 
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
+        LOG.info("DefaultActivator start");
     }
 
     public void stop() {
@@ -42,6 +38,8 @@ public class DefaultActivator {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+
+        LOG.info("DefaultActivator stop");
     }
 
     private void showSystemEnvironment() {
@@ -50,13 +48,13 @@ public class DefaultActivator {
         Enumeration<?> names = sp.propertyNames();
         while (names.hasMoreElements()) {
             String k = (String) names.nextElement();
-            LOG.log(Level.INFO, "System Properties: " + k + "=" + sp.getProperty(k));
+            LOG.log(Level.INFO, "System Property: " + k + "=" + sp.getProperty(k));
         }
 
         // System Environment
         Map<String, String> env = System.getenv();
         for (String k : env.keySet()) {
-            LOG.log(Level.CONFIG, "System Environment: " + k + "=" + env.get(k));
+            LOG.log(Level.INFO, "System Environment: " + k + "=" + env.get(k));
         }
     }
 

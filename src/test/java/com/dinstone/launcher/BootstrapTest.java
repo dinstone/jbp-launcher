@@ -50,4 +50,42 @@ public class BootstrapTest {
         bs.start();
     }
 
+    public static void main(String[] args) {
+        System.setProperty("launcher.config", "file:src/config/launcher.properties");
+        System.setProperty("launcher.home", ".");
+
+        Configuration config = new Configuration();
+        final LifecycleManager lm = new LifecycleManager(config);
+
+        Thread lt = new Thread("launch-thread") {
+
+            public void run() {
+                try {
+                    lm.start();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        lt.start();
+
+        Thread st = new Thread("stop-thread") {
+
+            public void run() {
+                try {
+                    System.in.read();
+
+                    lm.stopListener();
+
+                    Thread.sleep(5000);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+        };
+        st.start();
+
+        System.out.println("app exit");
+    }
+
 }

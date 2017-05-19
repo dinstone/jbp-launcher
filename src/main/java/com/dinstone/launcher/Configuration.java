@@ -46,7 +46,7 @@ public class Configuration {
         } catch (Throwable t) {
         }
 
-        // second find launcher file from launcher home's dir
+        // second find launcher file from launcher home's 'config' dir
         if (is == null) {
             try {
                 String launcherHome = getLauncherHome();
@@ -77,9 +77,7 @@ public class Configuration {
      * @throws IOException
      */
     private void loadProperties(InputStream is) throws IOException {
-        if (is != null) {
-            properties.load(is);
-        }
+        properties.load(is);
     }
 
     /**

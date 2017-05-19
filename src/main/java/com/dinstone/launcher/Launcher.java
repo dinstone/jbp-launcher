@@ -35,7 +35,22 @@ public class Launcher {
     private LifecycleManager lifecycle;
 
     public Launcher() {
-        init();
+        try {
+            Configuration config = new Configuration();
+
+            String launcherHome = config.getLauncherHome();
+            LOG.info("launcher.home is " + launcherHome);
+
+            String applicationHome = config.getApplicationHome();
+            LOG.info("application.home is " + applicationHome);
+
+            showSystemEnvironment();
+
+            lifecycle = new LifecycleManager(config);
+        } catch (Exception e) {
+            LOG.log(Level.SEVERE, "launcher init error.", e);
+            throw new RuntimeException(e);
+        }
     }
 
     public void start() throws Exception {
@@ -44,6 +59,22 @@ public class Launcher {
 
     public void stop() throws Exception {
         lifecycle.stop();
+    }
+
+    private void showSystemEnvironment() {
+        // System Properties
+        Properties sp = System.getProperties();
+        Enumeration<?> names = sp.propertyNames();
+        while (names.hasMoreElements()) {
+            String k = (String) names.nextElement();
+            LOG.log(Level.INFO, "System Property: " + k + "=" + sp.getProperty(k));
+        }
+
+        // System Environment
+        Map<String, String> env = System.getenv();
+        for (String k : env.keySet()) {
+            LOG.log(Level.INFO, "System Environment: " + k + "=" + env.get(k));
+        }
     }
 
     public static void main(String[] args) {
@@ -70,41 +101,6 @@ public class Launcher {
             System.exit(-1);
         }
 
-    }
-
-    private void init() {
-        try {
-            Configuration config = new Configuration();
-
-            String launcherHome = config.getLauncherHome();
-            LOG.info("launcher.home is " + launcherHome);
-
-            String applicationHome = config.getApplicationHome();
-            LOG.info("application.home is " + applicationHome);
-            
-            showSystemEnvironment();
-
-            lifecycle = new LifecycleManager(config);
-        } catch (Exception e) {
-            LOG.log(Level.SEVERE, "launcher init error.", e);
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void showSystemEnvironment() {
-        // System Properties
-        Properties sp = System.getProperties();
-        Enumeration<?> names = sp.propertyNames();
-        while (names.hasMoreElements()) {
-            String k = (String) names.nextElement();
-            LOG.log(Level.INFO, "System Properties: " + k + "=" + sp.getProperty(k));
-        }
-
-        // System Environment
-        Map<String, String> env = System.getenv();
-        for (String k : env.keySet()) {
-            LOG.log(Level.CONFIG, "System Environment: " + k + "=" + env.get(k));
-        }
     }
 
 }
