@@ -30,25 +30,22 @@ import java.util.logging.Logger;
  */
 public class Launcher {
 
-    private static final Logger LOG = Logger.getLogger(Launcher.class.getName());
-
     private LifecycleManager lifecycle;
 
     public Launcher() {
+        Logger logger = Logger.getLogger(Launcher.class.getName());
         try {
             Configuration config = new Configuration();
 
             String launcherHome = config.getLauncherHome();
-            LOG.info("launcher.home is " + launcherHome);
+            logger.info("launcher.home is " + launcherHome);
 
             String applicationHome = config.getApplicationHome();
-            LOG.info("application.home is " + applicationHome);
-
-            showSystemEnvironment();
+            logger.info("application.home is " + applicationHome);
 
             lifecycle = new LifecycleManager(config);
         } catch (Exception e) {
-            LOG.log(Level.SEVERE, "launcher init error.", e);
+            logger.log(Level.SEVERE, "launcher init error.", e);
             throw new RuntimeException(e);
         }
     }
@@ -61,31 +58,43 @@ public class Launcher {
         lifecycle.stop();
     }
 
-    private void showSystemEnvironment() {
+    private static void systemPropertyAndEnvironment() {
+        Logger logger = Logger.getLogger(Launcher.class.getName());
+
         // System Properties
         Properties sp = System.getProperties();
         Enumeration<?> names = sp.propertyNames();
         while (names.hasMoreElements()) {
             String k = (String) names.nextElement();
-            LOG.log(Level.INFO, "System Property: " + k + "=" + sp.getProperty(k));
+            logger.log(Level.INFO, "System Property: " + k + "=" + sp.getProperty(k));
         }
 
         // System Environment
         Map<String, String> env = System.getenv();
         for (String k : env.keySet()) {
-            LOG.log(Level.INFO, "System Environment: " + k + "=" + env.get(k));
+            logger.log(Level.INFO, "System Environment: " + k + "=" + env.get(k));
         }
     }
 
     public static void main(String[] args) {
-        try {
-            Launcher launcher = new Launcher();
+        System.setProperty("java.util.logging.manager", JdkLogManager.class.getName());
 
+        systemPropertyAndEnvironment();
+
+        try {
             String command = "start";
             if (args.length > 0) {
                 command = args[args.length - 1];
             }
 
+            if (!command.equals("start") && !command.equals("stop")) {
+                System.out.println("Java launcher does not support this command: \"" + command + "\".");
+
+                // Forced to exit the JVM
+                System.exit(0);
+            }
+
+            Launcher launcher = new Launcher();
             if (command.equals("start")) {
                 launcher.start();
 
@@ -93,14 +102,11 @@ public class Launcher {
                 System.exit(0);
             } else if (command.equals("stop")) {
                 launcher.stop();
-            } else {
-                LOG.warning("Java launcher does not support this command: \"" + command + "\".");
             }
         } catch (Throwable t) {
             t.printStackTrace();
             System.exit(-1);
         }
-
     }
 
 }

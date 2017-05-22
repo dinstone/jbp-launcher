@@ -131,7 +131,6 @@ public class LifecycleManager {
 
         // whether await was aborted
         boolean aborted = await();
-
         if (!aborted) {
             Runtime.getRuntime().removeShutdownHook(shutdownHook);
         }
@@ -160,7 +159,6 @@ public class LifecycleManager {
             } catch (IOException e) {
                 if (awaitStop) {
                     // Wait was aborted with socket.close()
-                    LOG.log(Level.INFO, "Accept socket aborted");
                     break;
                 } else {
                     LOG.log(Level.SEVERE, "Accept socket failure", e);
@@ -202,7 +200,7 @@ public class LifecycleManager {
     protected void stopListener() {
         stopActivator();
 
-        LOG.log(Level.INFO, "Notify socket aborted");
+        // Notify listener aborted;
         awaitStop = true;
 
         if (awaitThread != null) {
@@ -459,12 +457,13 @@ public class LifecycleManager {
 
         @Override
         public void run() {
+            Logger logger = Logger.getLogger(ApplicationShutdownHook.class.getName());
             try {
-                LOG.log(Level.INFO, "Application shutdown running");
-
                 stopListener();
             } catch (Throwable ex) {
-                LOG.log(Level.WARNING, "Application shutdown failure", ex);
+                logger.log(Level.WARNING, "Application shutdown failure", ex);
+            } finally {
+                JdkLogManager.clear();
             }
         }
     }

@@ -16,10 +16,6 @@
 
 package com.dinstone.launcher.activator;
 
-import java.util.Enumeration;
-import java.util.Map;
-import java.util.Properties;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class DefaultActivator {
@@ -27,35 +23,11 @@ public class DefaultActivator {
     private static final Logger LOG = Logger.getLogger(DefaultActivator.class.getName());
 
     public void start() {
-        showSystemEnvironment();
-
-        LOG.info("DefaultActivator start");
+        LOG.info("Activator start");
     }
 
     public void stop() {
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        LOG.info("DefaultActivator stop");
-    }
-
-    private void showSystemEnvironment() {
-        // System Properties
-        Properties sp = System.getProperties();
-        Enumeration<?> names = sp.propertyNames();
-        while (names.hasMoreElements()) {
-            String k = (String) names.nextElement();
-            LOG.log(Level.INFO, "System Property: " + k + "=" + sp.getProperty(k));
-        }
-
-        // System Environment
-        Map<String, String> env = System.getenv();
-        for (String k : env.keySet()) {
-            LOG.log(Level.INFO, "System Environment: " + k + "=" + env.get(k));
-        }
+        LOG.info("Activator stop");
     }
 
 }
