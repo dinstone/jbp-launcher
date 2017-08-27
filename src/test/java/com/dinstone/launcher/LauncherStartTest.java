@@ -28,7 +28,6 @@ public class LauncherStartTest {
         Launcher l = new Launcher();
         try {
             l.start();
-            System.exit(0);
         } catch (Exception e) {
             e.printStackTrace();
         }

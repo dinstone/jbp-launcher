@@ -76,22 +76,27 @@ public class LifecycleManager {
     public LifecycleManager(Configuration config) {
         this.config = config;
 
-        String portPro = config.getProperty("lifecycle.listen.port");
-        try {
-            listenPort = Integer.parseInt(portPro);
-        } catch (Exception e) {
-            LOG.log(Level.WARNING, "Invalid listener port, will use default port {0}", listenPort);
-        }
-
-        String command = config.getProperty("lifecycle.listen.command");
-        if (command != null) {
-            this.shutdownCommand = command;
-        }
-
         String enabled = config.getProperty("lifecycle.listen.enabled");
         if (enabled != null) {
             this.awaitEnabled = Boolean.parseBoolean(enabled);
         }
+
+        if (awaitEnabled) {
+            String portPro = config.getProperty("lifecycle.listen.port");
+            try {
+                listenPort = Integer.parseInt(portPro);
+            } catch (Exception e) {
+                LOG.log(Level.WARNING, "Invalid listener port, will use default port {0}", listenPort);
+            }
+
+            String command = config.getProperty("lifecycle.listen.command");
+            if (command != null) {
+                this.shutdownCommand = command;
+            }
+        } else {
+            LOG.log(Level.WARNING, "Lifecycle listen is disabled");
+        }
+
     }
 
     public void start() throws Exception {
@@ -122,20 +127,18 @@ public class LifecycleManager {
     }
 
     protected void startListener() {
-        if (!awaitEnabled || awaitSocket == null) {
-            return;
-        }
-
         ApplicationShutdownHook shutdownHook = new ApplicationShutdownHook();
         Runtime.getRuntime().addShutdownHook(shutdownHook);
 
-        // whether await was aborted
-        boolean aborted = await();
-        if (!aborted) {
-            Runtime.getRuntime().removeShutdownHook(shutdownHook);
-        }
+        if (awaitEnabled) {
+            // whether await was aborted
+            boolean aborted = await();
+            if (!aborted) {
+                Runtime.getRuntime().removeShutdownHook(shutdownHook);
+            }
 
-        destroyListener();
+            destroyListener();
+        }
     }
 
     private boolean await() {
@@ -289,7 +292,7 @@ public class LifecycleManager {
             classPath = "${application.home}/config,${application.home}/lib/*.jar";
         }
 
-        String applicationHome = config.getProperty(Configuration.APPLICATION_HOME);
+        String applicationHome = config.getApplicationHome();
         ClassLoader classLoader = createClassLoader(applicationHome, classPath, null);
         if (classLoader == null) {
             classLoader = this.getClass().getClassLoader();

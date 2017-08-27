@@ -25,9 +25,9 @@ import java.util.Properties;
 
 public class Configuration {
 
-    static final String LAUNCHER_HOME = "launcher.home";
+    private static final String LAUNCHER_HOME = "launcher.home";
 
-    static final String APPLICATION_HOME = "application.home";
+    private static final String APPLICATION_HOME = "application.home";
 
     private Properties properties = new Properties();
 
@@ -94,8 +94,8 @@ public class Configuration {
 
         // create launcher.home
         String userDir = System.getProperty("user.dir");
-        File bootstrapJar = new File(userDir, "bootstrap.jar");
-        if (bootstrapJar.exists()) {
+        File bootstrap = new File(userDir, "bootstrap.jar");
+        if (bootstrap.exists()) {
             try {
                 File parentDir = new File(userDir, "..");
                 System.setProperty(LAUNCHER_HOME, parentDir.getCanonicalPath());
@@ -112,29 +112,26 @@ public class Configuration {
     }
 
     public String getApplicationHome() {
-        // first find applicationHome from system property
-        String applicationHome = System.getProperty(Configuration.APPLICATION_HOME);
+        // find applicationHome from launcher config
+        String applicationHome = getProperty(APPLICATION_HOME);
         if (applicationHome != null && applicationHome.length() > 0) {
-            setProperty(Configuration.APPLICATION_HOME, applicationHome);
-            return applicationHome;
-        }
-
-        // second find applicationHome from launcher config
-        applicationHome = getProperty(Configuration.APPLICATION_HOME);
-        if (applicationHome != null && applicationHome.length() > 0) {
-            System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
+            // System.setProperty(APPLICATION_HOME, applicationHome);
             return applicationHome;
         }
 
         // default setting launcher home with launcher home
         applicationHome = getLauncherHome();
-        System.setProperty(Configuration.APPLICATION_HOME, applicationHome);
-        setProperty(Configuration.APPLICATION_HOME, applicationHome);
+        System.setProperty(APPLICATION_HOME, applicationHome);
+        setProperty(APPLICATION_HOME, applicationHome);
         return applicationHome;
     }
 
     public String getProperty(String name) {
-        return properties.getProperty(name);
+        String v = properties.getProperty(name);
+        if (v == null) {
+            v = System.getProperty(name);
+        }
+        return v;
     }
 
     /**

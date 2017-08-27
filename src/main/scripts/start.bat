@@ -4,13 +4,13 @@ cd %~dp0
 set "CURRENT_DIR=%cd%"
 echo CURRENT_DIR = %CURRENT_DIR%
 
-if exist "%APP_HOME%\bin\bootstrap.jar" goto okHome
-set "APP_HOME=%CURRENT_DIR%"
+if exist "%LAUNCHER_HOME%\bin\bootstrap.jar" goto okHome
+set "LAUNCHER_HOME=%CURRENT_DIR%"
 
 :okHome
 
-cd "%APP_HOME%"
-echo APP_HOME = %APP_HOME%
+cd "%LAUNCHER_HOME%"
+echo LAUNCHER_HOME = %LAUNCHER_HOME%
 
 rem set JAVA_OPTS=-server -Xss256k -Xms1g -Xmx1g -Xmn128m -XX:PermSize=128m -XX:MaxPermSize=256m -Djava.net.preferIPv4Stack=true -Dfile.encoding=UTF-8
 rem set JPDA_OPTS=-Xdebug -Xrunjdwp:transport=dt_socket,address=8888,server=y,suspend=y

@@ -16,18 +16,57 @@
 
 package com.dinstone.launcher.activator;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.logging.Logger;
 
 public class DefaultActivator {
 
     private static final Logger LOG = Logger.getLogger(DefaultActivator.class.getName());
 
+    private final Thread job;
+
+    public DefaultActivator() {
+        job = new JobRunner("Time-Job");
+    }
+
     public void start() {
+        job.start();
         LOG.info("Activator start");
     }
 
     public void stop() {
+        try {
+            job.interrupt();
+            job.join();
+        } catch (Exception e) {
+            // ignore
+            e.printStackTrace();
+        }
+
         LOG.info("Activator stop");
+    }
+
+    class JobRunner extends Thread {
+
+        public JobRunner(String name) {
+            setName(name);
+        }
+
+        @Override
+        public void run() {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            while (!Thread.interrupted()) {
+                LOG.info("currentime " + format.format(new Date()));
+
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+        }
+
     }
 
 }

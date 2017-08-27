@@ -97,9 +97,6 @@ public class Launcher {
             Launcher launcher = new Launcher();
             if (command.equals("start")) {
                 launcher.start();
-
-                // Forced to exit the JVM
-                System.exit(0);
             } else if (command.equals("stop")) {
                 launcher.stop();
             }
